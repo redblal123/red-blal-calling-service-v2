@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>RED BLAL TELECOM :D</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  /* SLEEK CYBERPUNK UI FOR THE MOGUL RED BLAL!!! */
+  body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0d0d12; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  .app-container { width: 400px; height: 700px; background: #15151e; border-radius: 20px; box-shadow: 0 0 50px rgba(255, 0, 50, 0.3); display: flex; flex-direction: column; overflow: hidden; position: relative; border: 2px solid #ff0033; }
+  
+  /* HEADER!!! */
+  .header { background: linear-gradient(90deg, #ff0033, #99001a); padding: 20px; text-align: center; font-weight: bold; font-size: 20px; letter-spacing: 2px; }
+  
+  /* SCREENS!!! */
+  .screen { display: none; flex-direction: column; flex: 1; padding: 20px; overflow-y: auto; }
+  .screen.active { display: flex; }
+  
+  /* AUTH SCREEN!!! */
+  input { background: #222; border: 1px solid #444; color: #fff; padding: 12px; margin: 8px 0; border-radius: 8px; font-size: 16px; outline: none; }
+  input:focus { border-color: #ff0033; }
+  button { background: #ff0033; color: #fff; border: none; padding: 12px; margin: 8px 0; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+  button:hover { background: #ff335c; transform: scale(1.02); }
+  button.secondary { background: #333; }
+  
+  /* DASHBOARD!!! */
+  .profile-card { background: #1f1f2e; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: center; border: 1px solid #333; }
+  .friend-code { font-size: 24px; color: #ff0033; font-weight: bold; letter-spacing: 3px; margin: 10px 0; }
+  .stats { display: flex; justify-content: space-around; margin: 15px 0; font-size: 14px; color: #aaa; }
+  .stats span { color: #fff; font-weight: bold; }
+  
+  /* CHAT!!! */
+  .chat-box { flex: 1; background: #0d0d12; border-radius: 10px; padding: 10px; margin-bottom: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 12px; border-radius: 10px; max-width: 80%; word-wrap: break-word; }
+  .msg.me { background: #ff0033; align-self: flex-end; }
+  .msg.them { background: #333; align-self: flex-start; }
+  .chat-input-row { display: flex; gap: 10px; }
+  .chat-input-row input { flex: 1; margin: 0; }
+  .chat-input-row button { margin: 0; width: 80px; }
+
+  /* CALL OVERLAY!!! */
+  .call-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+  .call-overlay.active { display: flex; }
+  .call-status { font-size: 24px; margin-bottom: 30px; color: #ff0033; }
+  .call-btn { width: 70px; height: 70px; border-radius: 50%; font-size: 30px; display: flex; justify-content: center; align-items: center; margin: 10px; }
+  .hangup { background: #ff0000; }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="header">RED BLAL TELECOM 📞</div>
+
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen" class="screen active">
+    <h2>LOGIN / REGISTER</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="register()">CREATE ACCOUNT</button>
+    <button class="secondary" onclick="login()">LOGIN</button>
+    <p id="auth-msg" style="color: #ff0033; text-align: center;"></p>
+  </div>
+
+  <!-- DASHBOARD SCREEN -->
+  <div id="dash-screen" class="screen">
+    <div class="profile-card">
+      <div>WELCOME, <span id="dash-user"></span></div>
+      <div style="font-size: 12px; color: #aaa;">YOUR FRIEND CODE (SETTINGS):</div>
+      <div class="friend-code" id="my-code"></div>
+      <div class="stats">
+        <div>CALLS LEFT TODAY: <span id="calls-left">5</span>/5</div>
+      </div>
+    </div>
+
+    <h3>ADD FRIEND</h3>
+    <input type="text" id="add-friend-input" placeholder="Enter their Friend Code">
+    <button onclick="addFriend()">ADD TO CONTACTS</button>
+
+    <h3>CONTACTS (RED BLAL MESSAGE SERVICE)</h3>
+    <div id="friends-list"></div>
+
+    <button class="secondary" onclick="logout()" style="margin-top: auto;">LOGOUT</button>
+  </div>
+
+  <!-- CHAT SCREEN -->
+  <div id="chat-screen" class="screen">
+    <h3>CHAT WITH <span id="chat-target-name"></span></h3>
+    <div class="chat-box" id="chat-box"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chat-msg" placeholder="Type a message...">
+      <button onclick="sendChat()">SEND</button>
+    </div>
+    <button class="secondary" onclick="showScreen('dash-screen')">BACK</button>
+  </div>
+
+  <!-- CALL OVERLAY -->
+  <div id="call-overlay" class="call-overlay">
+    <div class="call-status" id="call-status">CALLING...</div>
+    <audio id="remote-audio" autoplay></audio>
+    <button class="call-btn hangup" onclick="hangUp()">📞</button>
+  </div>
+</div>
+
+<script>
+  // INITIALIZING THE RED BLAL EMPIRE!!! DUDE LOL XD!!!
+  let currentUser = null;
+  let peer = null;
+  let currentCall = null;
+  let currentConn = null;
+  let targetFriend = null;
+  let localStream = null;
+
+  // DATABASE (LOCALSTORAGE)!!!
+  let db = JSON.parse(localStorage.getItem('rb_users') || '{}');
+  let callLog = JSON.parse(localStorage.getItem('rb_calls') || '{}');
+
+  // THE MAGIC AUTO-LOGIN TRICK!!! IT CHECKS IF YOU WERE ALREADY LOGGED IN!!!
+  let savedSession = localStorage.getItem('rb_current_user');
+  if (savedSession && db[savedSession]) {
+    currentUser = savedSession;
+    initPeer();
+    loadDashboard();
+    showScreen('dash-screen');
+  }
+
+  // AUTH FUNCTIONS!!!
+  function register() {
+    let u = document.getElementById('username').value;
+    let p = document.getElementById('password').value;
+    if(!u || !p) return showMsg("FILL IN THE BLANKS DUDE!");
+    if(db[u]) return showMsg("USER ALREADY EXISTS!");
+    let code = Math.floor(100000 + Math.random() * 900000).toString();
+    db[u] = { pass: p, code: code, friends: [] };
+    localStorage.setItem('rb_users', JSON.stringify(db));
+    showMsg("ACCOUNT CREATED! NOW LOGIN!");
+  }
+
+  function login() {
+    let u = document.getElementById('username').value;
+    let p = document.getElementById('password').value;
+    if(db[u] && db[u].pass === p) {
+      currentUser = u;
+      // SAVING THE SESSION SO YOU NEVER HAVE TO LOG IN AGAIN!!!
+      localStorage.setItem('rb_current_user', currentUser);
+      initPeer();
+      loadDashboard();
+      showScreen('dash-screen');
+    } else {
+      showMsg("WRONG CREDS BRO!");
+    }
+  }
+
+  function logout() {
+    // DESTROYING THE SESSION TOKEN!!!
+    localStorage.removeItem('rb_current_user');
+    currentUser = null;
+    if(peer) peer.destroy();
+    showScreen('auth-screen');
+  }
+
+  function showMsg(m) { document.getElementById('auth-msg').innerText = m; }
+
+  // DASHBOARD FUNCTIONS!!!
+  function loadDashboard() {
+    document.getElementById('dash-user').innerText = currentUser.toUpperCase();
+    document.getElementById('my-code').innerText = db[currentUser].code;
+    updateCallLimit();
+    renderFriends();
+  }
+
+  function updateCallLimit() {
+    let today = new Date().toDateString();
+    if(!callLog[today]) callLog[today] = {};
+    if(!callLog[today][currentUser]) callLog[today][currentUser] = 0;
+    localStorage.setItem('rb_calls', JSON.stringify(callLog));
+    document.getElementById('calls-left').innerText = 5 - callLog[today][currentUser];
+  }
+
+  function addFriend() {
+    let code = document.getElementById('add-friend-input').value;
+    let found = Object.keys(db).find(u => db[u].code === code && u !== currentUser);
+    if(!found) return alert("CODE NOT FOUND DUDE!");
+    if(!db[currentUser].friends.includes(found)) {
+      db[currentUser].friends.push(found);
+      localStorage.setItem('rb_users', JSON.stringify(db));
+      renderFriends();
+    }
+    document.getElementById('add-friend-input').value = '';
+  }
+
+  function renderFriends() {
+    let list = document.getElementById('friends-list');
+    list.innerHTML = '';
+    db[currentUser].friends.forEach(f => {
+      let div = document.createElement('div');
+      div.style.cssText = 'background:#1f1f2e; padding:10px; margin:5px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center;';
+      div.innerHTML = `<span>${f}</span> <div>
+        <button onclick="startChat('${f}')" style="padding:5px 10px; margin:0; background:#0077ff;">CHAT</button>
+        <button onclick="startCall('${f}')" style="padding:5px 10px; margin:0; background:#00cc44;">CALL</button>
+      </div>`;
+      list.appendChild(div);
+    });
+  }
+
+  // PEERJS WEBRTC MAGIC!!! DUDE LOL XD!!!
+  function initPeer() {
+    let peerId = 'redblal_' + db[currentUser].code;
+    peer = new Peer(peerId);
+    
+    peer.on('call', call => {
+      if(confirm("INCOMING CALL FROM " + call.peer + "! ANSWER?")) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          localStream = stream;
+          call.answer(stream);
+          handleCall(call);
+        });
+      } else {
+        call.close();
+      }
+    });
+
+    peer.on('connection', conn => {
+      handleConnection(conn);
+    });
+  }
+
+  // CALLING LOGIC!!!
+  function startCall(friendName) {
+    let today = new Date().toDateString();
+    if(callLog[today][currentUser] >= 5) return alert("LIMIT REACHED! COME BACK TOMORROW DUDE!");
+    
+    let targetCode = db[friendName].code;
+    let targetPeerId = 'redblal_' + targetCode;
+    
+    document.getElementById('call-overlay').classList.add('active');
+    document.getElementById('call-status').innerText = "RINGING " + friendName.toUpperCase() + "...";
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      localStream = stream;
+      currentCall = peer.call(targetPeerId, stream);
+      handleCall(currentCall);
+      
+      // INCREMENT CALL LIMIT!!!
+      callLog[today][currentUser]++;
+      localStorage.setItem('rb_calls', JSON.stringify(callLog));
+      updateCallLimit();
+    }).catch(err => {
+      alert("MIC ERROR! REMEMBER TO USE LIVE SERVER/HTTPS DUDE!");
+      hangUp();
+    });
+  }
+
+  function handleCall(call) {
+    call.on('stream', remoteStream => {
+      document.getElementById('remote-audio').srcObject = remoteStream;
+      document.getElementById('call-status').innerText = "CONNECTED! TALK LOUDLY!";
+    });
+    call.on('close', hangUp);
+  }
+
+  function hangUp() {
+    if(currentCall) currentCall.close();
+    if(localStream) localStream.getTracks().forEach(t => t.stop());
+    document.getElementById('call-overlay').classList.remove('active');
+    currentCall = null;
+    localStream = null;
+  }
+
+  // CHAT LOGIC!!!
+  function startChat(friendName) {
+    targetFriend = friendName;
+    document.getElementById('chat-target-name').innerText = friendName.toUpperCase();
+    document.getElementById('chat-box').innerHTML = '';
+    showScreen('chat-screen');
+    
+    let targetPeerId = 'redblal_' + db[friendName].code;
+    currentConn = peer.connect(targetPeerId);
+    handleConnection(currentConn);
+  }
+
+  function handleConnection(conn) {
+    conn.on('open', () => { console.log("CHAT CONNECTED!"); });
+    conn.on('data', data => {
+      if(data.type === 'chat') {
+        let box = document.getElementById('chat-box');
+        let msg = document.createElement('div');
+        msg.className = 'msg them';
+        msg.innerText = data.msg;
+        box.appendChild(msg);
+        box.scrollTop = box.scrollHeight;
+      }
+    });
+  }
+
+  function sendChat() {
+    let input = document.getElementById('chat-msg');
+    if(!input.value || !currentConn) return;
+    
+    currentConn.send({ type: 'chat', msg: input.value });
+    
+    let box = document.getElementById('chat-box');
+    let msg = document.createElement('div');
+    msg.className = 'msg me';
+    msg.innerText = input.value;
+    box.appendChild(msg);
+    box.scrollTop = box.scrollHeight;
+    input.value = '';
+  }
+
+  // UI NAVIGATION!!!
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+</script>
+</body>
+</html>
